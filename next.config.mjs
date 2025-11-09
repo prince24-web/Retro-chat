@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  webpack: (config) => {
+    // Ignore 'canvas' module from pdfjs-dist
+    config.externals.push({ canvas: "commonjs canvas" });
+    return config;
+  },
 };
 
 export default nextConfig;

@@ -1,32 +1,44 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
+import { loadDocument } from "./utils/loadDocument.js";
+import { splitDocs } from "./utils/splitText.js";
+import { embedChunks } from "./utils/embedText.js";
+export async function handler(req) {
+  try {
+    const { filePath } = await req.json();
 
-// Setup type definitions for built-in Supabase Runtime APIs
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+    // Step 1: Load document
+    const docs = await loadDocument(filePath);
 
-console.log("Hello from Functions!")
+    // Step 2: Split into chunks
+    const allSplits = await splitDocs(docs);
 
-Deno.serve(async (req) => {
-  const { name } = await req.json()
-  const data = {
-    message: `Hello ${name}!`,
+    
+    // Step 3: Embed
+    const embeddedDocs = await embedChunks(allSplits)
+    console.log("✅ total embedded chunks:", embeddedDocs.length);
+
+    // Step 4: Store in vector DB
+    await supabase.from("pdf_embeddings").insert(
+      embeddedDocs.map((chunk) => ({
+        user_id: userId,
+        pdf_id: pdfId,
+        chunk_text: chunk.content,
+        embedding: chunk.embedding,
+        metadata: { filePath },
+      }))
+    );
+
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "PDF processed successfully",
+        totalChunks: allSplits.length,
+        totalEmbeddings: embeddedDocs.length,
+      }),
+      { status: 200 }
+    );
+  } catch (err) {
+    console.error("❌ Error:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
-
-  return new Response(
-    JSON.stringify(data),
-    { headers: { "Content-Type": "application/json" } },
-  )
-})
-
-/* To invoke locally:
-
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
-
-  curl -i --location --request POST 'http://127.0.0.1:0/functions/v1/process-pdf' \
-    --header 'Authorization: Bearer ' \
-    --header 'Content-Type: application/json' \
-    --data '{"name":"Functions"}'
-
-*/
+}
